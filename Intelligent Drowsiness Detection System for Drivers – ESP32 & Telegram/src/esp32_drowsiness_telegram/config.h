@@ -4,11 +4,12 @@
 // ==============================================================================
 // 🚗 SYSTÈME DE SÉCURITÉ CONDUCTEUR - FICHIER DE CONFIGURATION
 // ==============================================================================
-// Architecture Matérielle :
+// Architecture Matérielle (Fusion Tri-Capteurs) :
 //  - Microcontrôleur : ESP32
-//  - Capteur 1 : MPU6050 (Micro-mouvements et dynamique du volant via I2C)
-//  - Capteur 2 : MAX30100 (Oxymètre de pouls, rythme cardiaque et présence des mains via I2C)
-//  - Moteur d'IA : Indice de Fatigue TinyML prédictif en temps réel et alertes santé
+//  - Capteur 1 : Capteur Infrarouge d'Yeux / Clignement (GPIO 34)
+//  - Capteur 2 : MPU6050 (Micro-mouvements et dynamique du volant via I2C)
+//  - Capteur 3 : MAX30100 (Oxymètre de pouls, rythme cardiaque et présence des mains via I2C)
+//  - Moteur d'IA : Indice de Fatigue TinyML prédictif en temps réel (Yeux + Volant + VRC)
 //  - Actionneurs : Buzzer actif + Double LED (Jaune Pré-Alerte, Rouge Critique)
 //  - Cloud : API Telegram Bot via Wi-Fi sécurisé
 // ==============================================================================
@@ -23,6 +24,9 @@
 #define CHAT_ID                     "VOTRE_TELEGRAM_CHAT_ID"
 
 // 3. Broches Matérielles (Brochage ESP32)
+// Capteur Optique Oculaire
+#define PIN_EYE_SENSOR              34     // GPIO 34 (Entrée analogique/numérique pour capteur d'yeux)
+
 // Bus I2C (Partagé par le MPU6050 et le MAX30100)
 #define PIN_I2C_SDA                 21     // GPIO 21 -> Ligne de données SDA des deux capteurs
 #define PIN_I2C_SCL                 22     // GPIO 22 -> Ligne d'horloge SCL des deux capteurs
@@ -35,12 +39,15 @@
 
 // 4. Seuils Temporels (en millisecondes)
 #define STABILIZATION_TIME_MS       8000   // 8 secondes de calibration et préchauffage au démarrage
-#define PRE_ALERT_TIME_MS           4500   // 4,5 secondes sans contact/mouvement -> Pré-alerte douce
-#define CRITICAL_ALERT_TIME_MS      8000   // 8,0 secondes d'inactivité -> Alarme critique + Alerte Telegram
+#define EYE_DROWSINESS_MS           1500   // 1,5 seconde d'yeux fermés en continu = Alerte Immédiate Micro-Sommeil !
+#define PRE_ALERT_TIME_MS           4500   // 4,5 secondes sans main/mouvement -> Pré-alerte douce
+#define CRITICAL_ALERT_TIME_MS      8000   // 8,0 secondes sans main/mouvement -> Alarme critique + Telegram
 #define TELEGRAM_COOLDOWN_MS        25000  // 25 secondes d'attente entre deux alertes cloud (anti-spam)
 #define BOT_CHECK_INTERVAL_MS       2000   // Vérification des commandes Telegram toutes les 2 secondes
 
 // 5. Seuils de Détection des Capteurs
+// Polarité du capteur oculaire (LOW = œil fermé pour la majorité des modules IR)
+#define EYE_CLOSED_STATE            LOW
 #define STEERING_MOTION_THRESHOLD   18.0f  // Vitesse angulaire minimale (deg/s) pour valider un mouvement du volant
 #define HAND_PRESENCE_IR_THRESHOLD  22000  // Seuil infrarouge minimum confirmant la main sur le volant
 

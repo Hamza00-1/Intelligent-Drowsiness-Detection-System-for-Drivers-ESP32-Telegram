@@ -1,25 +1,21 @@
 /*
  * ==============================================================================
- * 🚗 SYSTÈME INTELLIGENT DE DÉTECTION DE SOMNOLENCE AU VOLANT (AVEC IA EMBARQUÉE)
+ * 🚗 SYSTÈME INTELLIGENT DE DÉTECTION DE SOMNOLENCE AU VOLANT (TRI-CAPTEURS & IA)
  * ==============================================================================
  * Cible : Module ESP32 Dev
- * Configuration Matérielle :
- *   - MPU6050 :   Détecte les micro-ajustements et mouvements du volant (I2C)
- *   - MAX30100 :  Mesure le pouls, SpO2, et confirme la présence des mains (I2C)
- *   - Buzzer :    Alarme sonore de bord (GPIO 25)
- *   - LED Rouge : Stroboscope d'alarme critique (GPIO 26)
- *   - LED Jaune : Témoin lumineux de pré-alerte (GPIO 27)
- *   - Cloud :     Alertes d'urgence via Bot Telegram en Wi-Fi
+ * Configuration Matérielle Complète (3 Capteurs) :
+ *   1. Capteur Oculaire IR :  Surveillance directe des paupières et du clignement (GPIO 34)
+ *   2. MPU6050 :              Détecte les micro-ajustements et mouvements du volant (I2C)
+ *   3. MAX30100 :             Mesure le pouls, SpO2, et confirme la présence des mains (I2C)
+ *   - Actionneurs :           Buzzer sonore (GPIO 25), Stroboscope Rouge (GPIO 26), LED Jaune (GPIO 27)
+ *   - Télémétrie Cloud :      Alertes d'urgence instantanées via Bot Telegram en Wi-Fi
  *
- * 🧠 FONCTIONNALITÉS AVANCÉES D'INTELLIGENCE ARTIFICIELLE :
- *   1. Phase de Stabilisation : Étalonnage des capteurs pendant 8 secondes au démarrage.
- *   2. Variabilité de la Fréquence Cardiaque (VRC / HRV - RMSSD) : Analyse
- *      des variations du système nerveux autonome révélatrices de la somnolence.
- *   3. Entropie des Mouvements du Volant : Détection des micro-braquages vs trajectoire figée.
- *   4. Moteur de Fusion TinyML : Calcul en direct d'un Indice de Fatigue (0 à 100%).
- *   5. Pré-Alerte Prédictive : Avertit le conducteur *avant* l'endormissement complet.
- *   6. Surveillance des Anomalies de Santé : Détecte hypoxie (<90% SpO2) ou détresse cardiaque.
- *   7. Télédiagnostic Interactif : Commandes Telegram /ai, /vitals, /status, /test.
+ * 🧠 FUSION TRI-MODALE & IA EMBARQUÉE :
+ *   - Détection Instantanée : Yeux fermés > 1,5s = Alarme Immédiate de Micro-Sommeil !
+ *   - Détection Volant & Mains : Inactivité > 4,5s = Pré-alerte, > 8,0s = Alarme critique.
+ *   - Moteur TinyML : Calcul en direct d'un Indice de Fatigue (0 à 100%) intégrant
+ *     la Variabilité Cardiaque (VRC / HRV - RMSSD), l'entropie de direction et les yeux.
+ *   - Diagnostic à Distance : Commandes Telegram /ai, /vitals, /status, /test, /aide.
  * ==============================================================================
  */
 
@@ -34,7 +30,7 @@
 // Chargement des paramètres utilisateur et configuration IA
 #include "config.h"
 
-// États du Système (Machine à États Finis)
+// États du Système
 enum SystemState {
   STATE_STABILISATION,
   STATE_NORMAL,
@@ -55,44 +51,47 @@ const uint8_t MPU6050_ADDR = 0x68;
 // Variables de Suivi Temporel
 unsigned long bootTimestamp = 0;
 unsigned long lastActivityTimestamp = 0;
+unsigned long eyeClosedStartTime = 0;
 unsigned long lastTelegramAlertTime = 0;
 unsigned long lastBotCheckTime = 0;
 unsigned long lastPoxReportTime = 0;
 unsigned long lastAiEvaluationTime = 0;
 
+// États des Capteurs
+bool isEyeClosed = false;
+bool eyeDrowsinessTriggered = false;
 bool handDetectedOnWheel = false;
 bool steeringMotionDetected = false;
 float currentHeartRate = 0.0;
 uint8_t currentSpO2 = 0;
 uint32_t totalCriticalIncidents = 0;
+String lastAlarmReason = "";
 
-// Variables de Référence MPU6050
+// Variables MPU6050
 float lastGyroX = 0, lastGyroY = 0, lastGyroZ = 0;
 bool mpuInitialized = false;
 bool poxInitialized = false;
 
 // ======================== 🧠 TAMPONS DE DONNÉES IA & VRC ========================
-// Tampon circulaire pour les Intervalles Inter-Battements (IBI) en millisecondes
 volatile unsigned long lastBeatTimestamp = 0;
 volatile unsigned long ibiBuffer[HRV_WINDOW_SIZE];
 volatile uint8_t ibiIndex = 0;
 volatile uint8_t ibiCount = 0;
-float currentHrvRmssd = 0.0; // Racine carrée de la moyenne des différences successives (ms)
+float currentHrvRmssd = 0.0; // VRC RMSSD en ms
 
-// Tampon glissant pour les mesures de mouvement du volant (MPU6050)
 float steeringBuffer[STEERING_SAMPLE_WINDOW];
 uint8_t steeringIndex = 0;
 float steeringVariance = 0.0;
 
-// Indice de Fatigue IA (0 à 100%)
 int aiFatigueScore = 0;
 bool aiWarningSent = false;
 // ==============================================================================
 
-// Déclarations des Fonctions
+// Prototypes des Fonctions
 void connectToWiFi();
 void initI2CDevices();
 void initMPU6050();
+void readEyeSensor();
 void readMPU6050();
 void onBeatDetected();
 void calculateHRV();
@@ -100,31 +99,32 @@ void calculateSteeringDynamics(float currentMotion);
 void computeAIFatigueIndex();
 void checkBiometricHealthAnomalies();
 void updateSystemState();
-void triggerCriticalAlarm(unsigned long inactiveDuration);
+void triggerCriticalAlarm(String reason, unsigned long durationMs);
 void triggerPreAlert();
 void resetAlarmsToNormal();
-void sendTelegramEmergencyAlert(unsigned long durationMs);
+void sendTelegramEmergencyAlert(String reason, unsigned long durationMs);
 void sendTelegramAiWarning();
 void handleIncomingBotMessages(int numNewMessages);
 
 // ==============================================================================
-// 1. INITIALISATION (Exécutée une fois à la mise sous tension)
+// 1. INITIALISATION (Setup)
 // ==============================================================================
 void setup() {
   Serial.begin(115200);
   delay(1000);
 
   Serial.println("\n=======================================================");
-  Serial.println("  🚗 Système ESP32 de Vigilance Conducteur : IA & Capteurs");
+  Serial.println("  🚗 Système ESP32 Tri-Capteurs : Yeux + Volant + VRC");
   Serial.println("=======================================================");
 
   // Configuration des Broches GPIO
+  pinMode(PIN_EYE_SENSOR, INPUT);
   pinMode(PIN_BUZZER, OUTPUT);
   pinMode(PIN_LED_RED_CRITICAL, OUTPUT);
   pinMode(PIN_LED_YELLOW_PREALERT, OUTPUT);
   pinMode(PIN_LED_STATUS, OUTPUT);
 
-  // Extinction initiale de toutes les alertes
+  // Éteindre tous les actionneurs au départ
   digitalWrite(PIN_BUZZER, LOW);
   digitalWrite(PIN_LED_RED_CRITICAL, LOW);
   digitalWrite(PIN_LED_YELLOW_PREALERT, LOW);
@@ -133,12 +133,12 @@ void setup() {
   // Initialisation du bus I2C sur GPIO 21 (SDA) et GPIO 22 (SCL)
   Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
 
-  // Initialisation des capteurs I2C
+  // Initialisation des capteurs I2C (MPU6050 + MAX30100)
   initI2CDevices();
 
   // Connexion Wi-Fi et configuration SSL Telegram
   connectToWiFi();
-  secured_client.setInsecure(); // Évite les problèmes de certificat racine expiré sur ESP32
+  secured_client.setInsecure();
 
   bootTimestamp = millis();
   lastActivityTimestamp = millis();
@@ -147,21 +147,21 @@ void setup() {
   for (int i = 0; i < HRV_WINDOW_SIZE; i++) ibiBuffer[i] = 0;
   for (int i = 0; i < STEERING_SAMPLE_WINDOW; i++) steeringBuffer[i] = 0.0;
 
-  Serial.println(">> Entrée dans la PHASE DE STABILISATION. Étalonnage des capteurs...");
+  Serial.println(">> Entrée dans la PHASE DE STABILISATION (8s)...");
 }
 
 // ==============================================================================
-// 2. BOUCLE PRINCIPALE (Exécutée en continu)
+// 2. BOUCLE PRINCIPALE (Loop)
 // ==============================================================================
 void loop() {
-  // A. Maintien de la connexion Wi-Fi
+  // A. Statut Wi-Fi
   if (WiFi.status() == WL_CONNECTED) {
     digitalWrite(PIN_LED_STATUS, HIGH);
   } else {
     digitalWrite(PIN_LED_STATUS, LOW);
   }
 
-  // B. Mise à jour de l'oxymètre de pouls (doit être appelé en continu)
+  // B. Mise à jour continue de l'oxymètre MAX30100
   if (poxInitialized) {
     pox.update();
   }
@@ -173,34 +173,35 @@ void loop() {
       currentHeartRate = pox.getHeartRate();
       currentSpO2 = pox.getSpO2();
 
-      // Présence des mains confirmée par la détection du rythme cardiaque
       if (currentHeartRate > 35.0f && currentHeartRate < 195.0f) {
         handDetectedOnWheel = true;
       } else {
         handDetectedOnWheel = false;
       }
 
-      // 🏥 Vérification des anomalies de santé (détresse cardiaque / hypoxie)
       if (handDetectedOnWheel) {
         checkBiometricHealthAnomalies();
       }
     }
   }
 
-  // D. Lecture des mouvements du volant avec le MPU6050
+  // D. Lecture du Capteur Oculaire (Yeux / Clignement)
+  readEyeSensor();
+
+  // E. Lecture des mouvements du volant (MPU6050)
   readMPU6050();
 
-  // E. Exécution du moteur d'IA prédictif (toutes les 1,5 secondes)
+  // F. Moteur d'IA Prédictif (toutes les 1,5s)
   if (ENABLE_AI_PREDICTOR && (millis() - lastAiEvaluationTime >= 1500)) {
     lastAiEvaluationTime = millis();
     calculateHRV();
     computeAIFatigueIndex();
   }
 
-  // F. Évaluation de l'état du conducteur et gestion des alertes
+  // G. Évaluation de l'état du conducteur et déclenchement des alertes
   updateSystemState();
 
-  // G. Traitement des commandes Telegram entrantes (toutes les 2 secondes)
+  // H. Gestion des commandes Telegram entrantes (toutes les 2s)
   if (millis() - lastBotCheckTime >= BOT_CHECK_INTERVAL_MS) {
     lastBotCheckTime = millis();
     int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
@@ -212,16 +213,39 @@ void loop() {
 }
 
 // ==============================================================================
-// 3. INITIALISATION DU MATÉRIEL ET DES CAPTEURS
+// 3. LECTURE DU CAPTEUR OCULAIRE
+// ==============================================================================
+void readEyeSensor() {
+  int sensorVal = digitalRead(PIN_EYE_SENSOR);
+
+  if (sensorVal == EYE_CLOSED_STATE) {
+    if (!isEyeClosed) {
+      // Les yeux viennent de se fermer
+      isEyeClosed = true;
+      eyeClosedStartTime = millis();
+    } else {
+      // Les yeux restent fermés : calcul de la durée
+      unsigned long duration = millis() - eyeClosedStartTime;
+      if (duration >= EYE_DROWSINESS_MS) {
+        eyeDrowsinessTriggered = true;
+      }
+    }
+  } else {
+    // Yeux ouverts
+    isEyeClosed = false;
+    eyeDrowsinessTriggered = false;
+  }
+}
+
+// ==============================================================================
+// 4. INITIALISATION DES CAPTEURS I2C
 // ==============================================================================
 void initI2CDevices() {
-  // 1. Initialisation du MPU6050 (Mouvements du volant)
   initMPU6050();
 
-  // 2. Initialisation du MAX30100 (Oxymètre de pouls et contact des mains)
-  Serial.print("Initialisation de l'oxymètre MAX30100...");
+  Serial.print("Initialisation du capteur cardiaque MAX30100...");
   if (!pox.begin()) {
-    Serial.println(" [ÉCHEC] Vérifiez le câblage du MAX30100 (VCC/GND/SDA/SCL).");
+    Serial.println(" [ÉCHEC] Vérifiez le câblage I2C du MAX30100.");
     poxInitialized = false;
   } else {
     Serial.println(" [SUCCÈS] MAX30100 Opérationnel !");
@@ -233,25 +257,23 @@ void initI2CDevices() {
 
 void initMPU6050() {
   Wire.beginTransmission(MPU6050_ADDR);
-  Wire.write(0x6B); // Registre PWR_MGMT_1
-  Wire.write(0);    // Réveil du MPU6050
+  Wire.write(0x6B);
+  Wire.write(0);
   byte error = Wire.endTransmission();
 
   if (error == 0) {
     Serial.println(">> MPU6050 (Capteur de volant) initialisé avec succès.");
     mpuInitialized = true;
   } else {
-    Serial.println(">> [ATTENTION] MPU6050 introuvable à l'adresse I2C 0x68.");
+    Serial.println(">> [ATTENTION] MPU6050 introuvable à l'adresse 0x68.");
     mpuInitialized = false;
   }
 }
 
-// Rappel automatique lors de la détection d'une pulsation cardiaque
 void onBeatDetected() {
   unsigned long now = millis();
   if (lastBeatTimestamp > 0) {
     unsigned long ibi = now - lastBeatTimestamp;
-    // Intervalles physiologiques plausibles (300ms = 200 bpm, 1800ms = 33 bpm)
     if (ibi >= 300 && ibi <= 1800) {
       ibiBuffer[ibiIndex] = ibi;
       ibiIndex = (ibiIndex + 1) % HRV_WINDOW_SIZE;
@@ -263,12 +285,11 @@ void onBeatDetected() {
 }
 
 // ==============================================================================
-// 4. TRAITEMENT INERTIEL DU VOLANT (MPU6050)
+// 5. TRAITEMENT DU VOLANT (MPU6050)
 // ==============================================================================
 void readMPU6050() {
   if (!mpuInitialized) return;
 
-  // Lecture des 6 registres gyroscopiques à partir de 0x43 (GYRO_XOUT_H)
   Wire.beginTransmission(MPU6050_ADDR);
   Wire.write(0x43);
   Wire.endTransmission(false);
@@ -292,13 +313,11 @@ void readMPU6050() {
     lastGyroY = gyroY;
     lastGyroZ = gyroZ;
 
-    // Calcul de la dynamique du volant pour l'IA
     calculateSteeringDynamics(totalMotion);
 
-    // Si le mouvement dépasse le seuil, le conducteur agit sur la direction
     if (totalMotion >= STEERING_MOTION_THRESHOLD) {
       steeringMotionDetected = true;
-      lastActivityTimestamp = millis(); // Réinitialise le compte à rebours d'inactivité
+      lastActivityTimestamp = millis();
     } else {
       steeringMotionDetected = false;
     }
@@ -309,7 +328,6 @@ void calculateSteeringDynamics(float currentMotion) {
   steeringBuffer[steeringIndex] = currentMotion;
   steeringIndex = (steeringIndex + 1) % STEERING_SAMPLE_WINDOW;
 
-  // Calcul de la moyenne et de la variance des mouvements
   float sum = 0.0;
   for (int i = 0; i < STEERING_SAMPLE_WINDOW; i++) {
     sum += steeringBuffer[i];
@@ -324,17 +342,11 @@ void calculateSteeringDynamics(float currentMotion) {
 }
 
 // ==============================================================================
-// 5. 🧠 MOTEUR D'IA EMBARQUÉ ET ANALYSE BIOMÉTRIQUE
+// 6. 🧠 MOTEUR D'IA EMBARQUÉ (FUSION YEUX + VOLANT + CARDIAQUE)
 // ==============================================================================
-
-/**
- * Calcule la Variabilité de la Fréquence Cardiaque (VRC / HRV - RMSSD).
- * Lors de la somnolence, l'activité du système parasympathique entraîne
- * une baisse et une instabilité caractéristiques de la valeur RMSSD.
- */
 void calculateHRV() {
   if (ibiCount < 4) {
-    currentHrvRmssd = 45.0; // Valeur médiane par défaut en phase d'acquisition
+    currentHrvRmssd = 45.0;
     return;
   }
 
@@ -354,13 +366,6 @@ void calculateHRV() {
   }
 }
 
-/**
- * Moteur de Fusion Inspiré du TinyML :
- * Combine 3 biomarqueurs indépendants pour générer un Score de Fatigue de 0 à 100% :
- *   1. Durée d'Inactivité du Volant (0 à 45 points)
- *   2. Variance et Entropie de Direction (0 à 25 points)
- *   3. Ralentissement Cardiaque & Baisse VRC (0 à 30 points)
- */
 void computeAIFatigueIndex() {
   if (currentState == STATE_STABILISATION) {
     aiFatigueScore = 0;
@@ -369,39 +374,36 @@ void computeAIFatigueIndex() {
 
   unsigned long inactiveDuration = millis() - lastActivityTimestamp;
 
-  // Facteur 1 : Durée d'inactivité directionnelle (0 - 45 points)
+  // Facteur 1 : Inactivité du volant (0 - 35 points)
   float inactivityFactor = (float)inactiveDuration / (float)CRITICAL_ALERT_TIME_MS;
   if (inactivityFactor > 1.0) inactivityFactor = 1.0;
-  int ptsInactivity = (int)(inactivityFactor * 45.0);
+  int ptsInactivity = (int)(inactivityFactor * 35.0);
 
-  // Facteur 2 : Variance des micro-ajustements du volant (0 - 25 points)
+  // Facteur 2 : Mouvements des yeux (0 - 35 points)
+  int ptsEyes = 0;
+  if (isEyeClosed) {
+    unsigned long closedMs = millis() - eyeClosedStartTime;
+    if (closedMs > 500) ptsEyes = 20;
+    if (closedMs >= EYE_DROWSINESS_MS) ptsEyes = 35; // Yeux fermés de manière critique !
+  }
+
+  // Facteur 3 : Variance du volant (0 - 15 points)
   int ptsSteering = 0;
   if (steeringVariance < 2.0) {
-    ptsSteering = 25; // Volant figé (somnolence ou perte de contrôle)
-  } else if (steeringVariance < 6.0) {
-    ptsSteering = 15;
+    ptsSteering = 15; // Volant figé
   } else if (steeringVariance > 80.0) {
-    ptsSteering = 20; // Coups de volant brusques (réveil en sursaut)
+    ptsSteering = 12; // Coups de volant brusques
   }
 
-  // Facteur 3 : Signatures biométriques et cardiaques (0 - 30 points)
+  // Facteur 4 : Données cardiaques & mains (0 - 15 points)
   int ptsBiometrics = 0;
-  if (!handDetectedOnWheel) {
-    ptsBiometrics += 25; // Mains retirées du volant !
-  } else {
-    if (currentHeartRate > 0 && currentHeartRate < 58.0f) {
-      ptsBiometrics += 15; // Ralentissement du pouls
-    }
-    if (currentHrvRmssd > 0 && currentHrvRmssd < 20.0f) {
-      ptsBiometrics += 10; // Chute de la variabilité cardiaque
-    }
-  }
+  if (!handDetectedOnWheel) ptsBiometrics += 10;
+  if (currentHeartRate > 0 && currentHeartRate < 58.0f) ptsBiometrics += 5;
 
-  // Calcul du score final borné entre 0 et 100%
-  aiFatigueScore = ptsInactivity + ptsSteering + ptsBiometrics;
+  aiFatigueScore = ptsInactivity + ptsEyes + ptsSteering + ptsBiometrics;
   if (aiFatigueScore > 100) aiFatigueScore = 100;
 
-  // 🔔 Déclenchement de l'avertissement prédictif IA avant l'endormissement complet
+  // Alerte prédictive IA si le score atteint 75%
   if (aiFatigueScore >= AI_FATIGUE_ALERT_SCORE && !aiWarningSent && currentState == STATE_NORMAL) {
     sendTelegramAiWarning();
     aiWarningSent = true;
@@ -410,10 +412,6 @@ void computeAIFatigueIndex() {
   }
 }
 
-/**
- * 🏥 Surveillance Médicale et Biométrique :
- * Distingue la simple somnolence d'une urgence médicale (malaise, hypoxie, arrêt).
- */
 void checkBiometricHealthAnomalies() {
   if (currentSpO2 > 0 && currentSpO2 < MIN_SAFE_SPO2) {
     Serial.printf("⚠️ [ALERTE SANTÉ] Saturation basse en oxygène (SpO2) : %d%%\n", currentSpO2);
@@ -424,61 +422,65 @@ void checkBiometricHealthAnomalies() {
 }
 
 // ==============================================================================
-// 6. MACHINE À ÉTATS ET LOGIQUE D'ALERTE
+// 7. MACHINE À ÉTATS ET GESTION DES ALERTES
 // ==============================================================================
 void updateSystemState() {
   unsigned long now = millis();
 
-  // Phase 1 : Phase de Stabilisation (Calibration des capteurs au démarrage)
+  // Phase 1 : Stabilisation
   if (currentState == STATE_STABILISATION) {
     if (now - bootTimestamp < STABILIZATION_TIME_MS) {
-      // Clignotement doux de la LED jaune pendant la calibration
       digitalWrite(PIN_LED_YELLOW_PREALERT, (now / 300) % 2);
       return;
     } else {
       digitalWrite(PIN_LED_YELLOW_PREALERT, LOW);
       currentState = STATE_NORMAL;
       lastActivityTimestamp = now;
-      Serial.println(">> STABILISATION TERMINÉE. Surveillance active engagée.");
+      Serial.println(">> STABILISATION TERMINÉE. Surveillance Tri-Capteurs active.");
     }
   }
 
-  // Si le conducteur touche le volant OU tourne, réinitialisation de l'inactivité
+  // CONDITION CRITIQUE PRIORITAIRE : Micro-sommeil détecté par le capteur oculaire (> 1,5s)
+  if (eyeDrowsinessTriggered) {
+    currentState = STATE_ALARME_CRITIQUE;
+    unsigned long closedDuration = now - eyeClosedStartTime;
+    triggerCriticalAlarm("YEUX FERMÉS (Micro-sommeil)", closedDuration);
+    return;
+  }
+
+  // Réinitialisation de l'inactivité si le conducteur touche le volant ou braque
   if (handDetectedOnWheel || steeringMotionDetected) {
     lastActivityTimestamp = now;
-    if (currentState != STATE_NORMAL) {
+    if (currentState != STATE_NORMAL && !isEyeClosed) {
       resetAlarmsToNormal();
     }
     return;
   }
 
-  // Calcul du temps écoulé sans action du conducteur
   unsigned long inactiveDuration = now - lastActivityTimestamp;
 
-  // Phase 3 : Alarme Critique
+  // Phase 3 : Alarme critique pour inactivité du volant & mains
   if (inactiveDuration >= CRITICAL_ALERT_TIME_MS) {
     currentState = STATE_ALARME_CRITIQUE;
-    triggerCriticalAlarm(inactiveDuration);
+    triggerCriticalAlarm("VOLANT & MAINS INACTIFS", inactiveDuration);
   }
   // Phase 2 : Pré-Alerte
   else if (inactiveDuration >= PRE_ALERT_TIME_MS) {
     currentState = STATE_PRE_ALERTE;
     triggerPreAlert();
   }
-  // État Normal
+  // Retour à l'état normal
   else {
-    if (currentState != STATE_NORMAL) {
+    if (currentState != STATE_NORMAL && !isEyeClosed) {
       resetAlarmsToNormal();
     }
   }
 }
 
 void triggerPreAlert() {
-  // Pré-alerte douce : LED Jaune allumée fixe, signal sonore court
   digitalWrite(PIN_LED_YELLOW_PREALERT, HIGH);
   digitalWrite(PIN_LED_RED_CRITICAL, LOW);
 
-  // Bip intermittent toutes les secondes
   if ((millis() / 500) % 2 == 0) {
     digitalWrite(PIN_BUZZER, HIGH);
   } else {
@@ -488,19 +490,18 @@ void triggerPreAlert() {
   Serial.println("[PRÉ-ALERTE] Inactivité détectée. Gardez les mains sur le volant !");
 }
 
-void triggerCriticalAlarm(unsigned long inactiveDuration) {
-  // Alarme critique : Sirène sonore continue et stroboscope LED rouge
+void triggerCriticalAlarm(String reason, unsigned long durationMs) {
+  lastAlarmReason = reason;
   digitalWrite(PIN_LED_YELLOW_PREALERT, LOW);
-  digitalWrite(PIN_LED_RED_CRITICAL, (millis() / 150) % 2); // Clignotement stroboscopique
-  digitalWrite(PIN_BUZZER, HIGH);                           // Alarme continue puissante
+  digitalWrite(PIN_LED_RED_CRITICAL, (millis() / 150) % 2); // Stroboscope
+  digitalWrite(PIN_BUZZER, HIGH);                           // Sirène
 
-  Serial.printf("🚨 [ALARME CRITIQUE] Inactivité : %lu ms ! Conducteur sans réaction !\n", inactiveDuration);
+  Serial.printf("🚨 [ALARME CRITIQUE] Cause: %s | Durée: %lu ms !\n", reason.c_str(), durationMs);
 
-  // Transmission de l'alerte sur Telegram si le délai de cooldown est passé
   if (millis() - lastTelegramAlertTime >= TELEGRAM_COOLDOWN_MS) {
     totalCriticalIncidents++;
     lastTelegramAlertTime = millis();
-    sendTelegramEmergencyAlert(inactiveDuration);
+    sendTelegramEmergencyAlert(reason, durationMs);
   }
 }
 
@@ -512,22 +513,24 @@ void resetAlarmsToNormal() {
 }
 
 // ==============================================================================
-// 7. GESTION DES NOTIFICATIONS ET COMMANDES TELEGRAM
+// 8. TÉLÉMÉTRIE & COMMANDES TELEGRAM
 // ==============================================================================
-void sendTelegramEmergencyAlert(unsigned long durationMs) {
+void sendTelegramEmergencyAlert(String reason, unsigned long durationMs) {
   String msg = "🚨 *ALERTE CRITIQUE DE SÉCURITÉ CONDUCTEUR*\n\n";
-  msg += "⚠️ *Inactivité Prolongée / Somnolence Avérée !*\n";
-  msg += "• Durée sans réaction : *" + String(durationMs / 1000.0, 1) + " secondes*\n";
+  msg += "⚠️ *Somnolence / Perte de Contrôle Détectée !*\n";
+  msg += "• Motif : *" + reason + "*\n";
+  msg += "• Durée de l'anomalie : *" + String(durationMs / 1000.0, 1) + " secondes*\n";
   msg += "• Score de Fatigue IA : *" + String(aiFatigueScore) + " / 100*\n";
-  msg += "• Mouvements du volant : *AUCUN DÉTECTÉ (MPU6050)*\n";
-  msg += "• Mains sur le volant : *NON DÉTECTÉES (MAX30100)*\n";
+  msg += "• Capteur Oculaire : *" + String(isEyeClosed ? "🔴 YEUX FERMÉS" : "🟢 YEUX OUVERTS") + "*\n";
+  msg += "• Mouvements du volant : *" + String(steeringMotionDetected ? "ACTIFS" : "AUCUN (MPU6050)") + "*\n";
+  msg += "• Mains sur le volant : *" + String(handDetectedOnWheel ? "DÉTECTÉES" : "ABSENTES (MAX30100)") + "*\n";
   msg += "• Pouls : *" + String(currentHeartRate, 0) + " BPM* | SpO2 : *" + String(currentSpO2) + "%*\n";
   msg += "• Incident N° : *#" + String(totalCriticalIncidents) + "*\n\n";
-  msg += "🔊 La sirène et le stroboscope de bord sont *ACTIFS*.\n";
-  msg += "👉 Veuillez contacter le conducteur d'urgence !";
+  msg += "🔊 La sirène et le stroboscope sont *ACTIFS*.\n";
+  msg += "👉 Veuillez contacter immédiatement le conducteur !";
 
   bot.sendMessage(CHAT_ID, msg, "Markdown");
-  Serial.println("[TELEGRAM] Alerte d'urgence transmise sur le cloud.");
+  Serial.println("[TELEGRAM] Alerte d'urgence transmise.");
 }
 
 void sendTelegramAiWarning() {
@@ -536,13 +539,14 @@ void sendTelegramAiWarning() {
 
   String msg = "⚠️ *AVERTISSEMENT PRÉDICTIF IA : FATIGUE ÉLEVÉE*\n\n";
   msg += "🧠 Le moteur d'IA TinyML a détecté des signes précurseurs d'endormissement !\n";
-  msg += "• Indice de Fatigue : *" + String(aiFatigueScore) + "%* (Seuil critique : " + String(AI_FATIGUE_ALERT_SCORE) + "%)\n";
+  msg += "• Indice de Fatigue : *" + String(aiFatigueScore) + "%* (Seuil : " + String(AI_FATIGUE_ALERT_SCORE) + "%)\n";
+  msg += "• État Oculaire : *" + String(isEyeClosed ? "Clignements anormaux" : "Normal") + "*\n";
   msg += "• Variabilité Cardiaque (RMSSD) : *" + String(currentHrvRmssd, 1) + " ms*\n";
-  msg += "• Variance des Mouvements du Volant : *" + String(steeringVariance, 1) + "*\n";
-  msg += "• Recommandation : *Faites une pause avant que le micro-sommeil ne survienne !*";
+  msg += "• Variance du Volant : *" + String(steeringVariance, 1) + "*\n";
+  msg += "• Recommandation : *Faites une pause avant l'endormissement complet !*";
 
   bot.sendMessage(CHAT_ID, msg, "Markdown");
-  Serial.println("[IA] Avertissement prédictif envoyé sur Telegram.");
+  Serial.println("[IA] Avertissement prédictif envoyé.");
 }
 
 void handleIncomingBotMessages(int numNewMessages) {
@@ -554,44 +558,46 @@ void handleIncomingBotMessages(int numNewMessages) {
     Serial.println(commandText);
 
     if (commandText == "/start" || commandText == "/help" || commandText == "/aide") {
-      String reply = "🚘 *Sentinelle de Sécurité ESP32 (IA & Biométrie)*\n\n";
+      String reply = "🚘 *Sentinelle ESP32 Tri-Capteurs (Yeux + Volant + VRC)*\n\n";
       reply += "Commandes disponibles :\n";
-      reply += "• /status - État général et compteur d'incidents\n";
-      reply += "• /ai     - Indice de fatigue TinyML et données VRC (HRV)\n";
-      reply += "• /vitals - Fréquence cardiaque et oxygène sanguin (SpO2)\n";
-      reply += "• /test   - Test physique du buzzer et des LED (1 sec)\n";
-      reply += "• /aide   - Affiche ce menu d'aide";
+      reply += "• /status - Bilan complet des 3 capteurs et incidents\n";
+      reply += "• /ai     - Indice de fatigue TinyML et données VRC\n";
+      reply += "• /vitals - Fréquence cardiaque et oxygène sanguin\n";
+      reply += "• /test   - Test physique du buzzer et des LED (1s)\n";
+      reply += "• /aide   - Affiche ce menu";
       bot.sendMessage(senderChatId, reply, "Markdown");
     } 
     else if (commandText == "/ai") {
       String reply = "🧠 *Télémétrie d'IA Embarquée (TinyML)*\n\n";
       reply += "• Score de Fatigue : *" + String(aiFatigueScore) + " / 100*\n";
       reply += "• Niveau de Risque : *" + String(aiFatigueScore > 75 ? "🔴 ÉLEVÉ" : (aiFatigueScore > 45 ? "🟡 MODÉRÉ" : "🟢 FAIBLE")) + "*\n";
+      reply += "• État des Yeux : *" + String(isEyeClosed ? "🔴 FERMÉS" : "🟢 OUVERTS") + "*\n";
       reply += "• Variabilité Cardiaque (RMSSD) : `" + String(currentHrvRmssd, 1) + " ms`\n";
       reply += "• Variance de Direction : `" + String(steeringVariance, 2) + "`\n";
-      reply += "• Activité du Volant : " + String(steeringMotionDetected ? "Micro-ajustements Actifs" : "Direction Figée") + "\n";
       bot.sendMessage(senderChatId, reply, "Markdown");
     }
     else if (commandText == "/vitals") {
-      String reply = "💓 *Données Biométriques du Conducteur*\n\n";
+      String reply = "💓 *Données Biométriques & Présence*\n\n";
       reply += "• Pouls Cardiaque : *" + String(currentHeartRate, 1) + " BPM*\n";
       reply += "• Oxygène Sanguin (SpO2) : *" + String(currentSpO2) + "%*\n";
       reply += "• Mains sur le Volant : *" + String(handDetectedOnWheel ? "OUI ✅" : "NON ❌") + "*\n";
+      reply += "• Capteur Oculaire : *" + String(isEyeClosed ? "🔴 Yeux Fermés" : "🟢 Yeux Ouverts") + "*\n";
       reply += "• Statut Cardiaque : *" + String(currentHeartRate < MIN_SAFE_BPM ? "Alerte Bradycardie" : (currentHeartRate > MAX_SAFE_BPM ? "Alerte Tachycardie" : "Normal")) + "*";
       bot.sendMessage(senderChatId, reply, "Markdown");
     }
     else if (commandText == "/status") {
-      String reply = "📊 *Diagnostic Système en Direct*\n\n";
+      String reply = "📊 *Diagnostic Tri-Capteurs en Direct*\n\n";
       reply += "• Phase Actuelle : *" + String(currentState == STATE_NORMAL ? "SURVEILLANCE NORMALE" : (currentState == STATE_PRE_ALERTE ? "PRÉ-ALERTE" : "ALARME CRITIQUE")) + "*\n";
-      reply += "• Mains Détectées : *" + String(handDetectedOnWheel ? "OUI" : "NON") + "*\n";
-      reply += "• Volant Actif : *" + String(steeringMotionDetected ? "OUI" : "NON") + "*\n";
+      reply += "• 1. Capteur Oculaire : *" + String(isEyeClosed ? "🔴 FERMÉS" : "🟢 OUVERTS") + "*\n";
+      reply += "• 2. Mains sur Volant : *" + String(handDetectedOnWheel ? "OUI (MAX30100)" : "NON") + "*\n";
+      reply += "• 3. Mouvements Volant : *" + String(steeringMotionDetected ? "ACTIFS (MPU6050)" : "FIGÉ") + "*\n";
       reply += "• Signal Wi-Fi : `" + String(WiFi.RSSI()) + " dBm`\n";
       reply += "• Incidents Totaux : *" + String(totalCriticalIncidents) + "*\n";
       reply += "• Temps de Fonctionnement : " + String(millis() / 60000) + " minutes";
       bot.sendMessage(senderChatId, reply, "Markdown");
     }
     else if (commandText == "/test") {
-      bot.sendMessage(senderChatId, "🔔 Exécution d'un test système d'1 seconde...", "");
+      bot.sendMessage(senderChatId, "🔔 Test des actionneurs pendant 1 seconde...", "");
       digitalWrite(PIN_BUZZER, HIGH);
       digitalWrite(PIN_LED_YELLOW_PREALERT, HIGH);
       digitalWrite(PIN_LED_RED_CRITICAL, HIGH);
@@ -599,7 +605,7 @@ void handleIncomingBotMessages(int numNewMessages) {
       digitalWrite(PIN_BUZZER, LOW);
       digitalWrite(PIN_LED_YELLOW_PREALERT, LOW);
       digitalWrite(PIN_LED_RED_CRITICAL, LOW);
-      bot.sendMessage(senderChatId, "✅ Test terminé. Tous les actionneurs sont opérationnels.", "");
+      bot.sendMessage(senderChatId, "✅ Test terminé avec succès.", "");
     }
   }
 }

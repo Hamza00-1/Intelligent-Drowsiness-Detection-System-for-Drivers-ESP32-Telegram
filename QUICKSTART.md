@@ -1,59 +1,73 @@
 # 🚀 Guide de Démarrage Rapide et de Déploiement
 
-Bienvenue ! Voici toutes les instructions pour configurer, câbler et déployer rapidement le **Système Intelligent de Détection de Somnolence pour Conducteurs (ESP32 + MPU6050 + MAX30100 + Telegram avec IA Embarquée)**.
+Bienvenue ! Voici toutes les instructions pour configurer, câbler et déployer rapidement le **Système Intelligent de Détection de Somnolence pour Conducteurs (ESP32 + Capteur Oculaire + MPU6050 + MAX30100 + Telegram avec IA Embarquée)**.
 
 ---
 
-## 🚘 Vue d'Ensemble du Système
+## 🚘 Vue d'Ensemble du Système (Fusion Tri-Capteurs)
 
-Ce système surveille la vigilance du conducteur directement depuis le **volant du véhicule** grâce à une fusion multi-capteurs et une **IA prédictive** :
-1. **MPU6050 (Centrale inertielle 6 axes)** : Détecte les micro-ajustements permanents et les mouvements angulaires du volant.
-2. **MAX30100 (Oxymètre de pouls)** : Mesure la **fréquence cardiaque**, la **saturation en oxygène (SpO2)** et confirme la **présence des mains sur le volant**.
-3. **🧠 Moteur d'IA TinyML Embarqué** : Calcule en temps réel la **Variabilité de la Fréquence Cardiaque (VRC / HRV - RMSSD)** et la variance des mouvements du volant pour établir un **Indice de Fatigue de 0 à 100%**. Il prévient le conducteur **avant** l'endormissement !
-4. **Phase de Stabilisation (8s)** : Au démarrage, étalonne les capteurs et compense la dérive du gyroscope (la LED jaune clignote doucement).
-5. **Phase de Pré-Alerte (après 4,5s d'inactivité)** : La LED jaune s'allume en continu et un bip intermittent avertit le conducteur de remettre les mains sur le volant.
-6. **Phase d'Alarme Critique (après 8,0s d'inactivité)** : La LED rouge clignote rapidement en stroboscope, la sirène retentit en continu, et une **alerte Telegram instantanée** est envoyée en Wi-Fi avec les constantes vitales en direct.
+Ce système surveille la vigilance du conducteur grâce à 3 canaux physiques complémentaires :
+1. **👁️ Capteur Oculaire IR (GPIO 34)** : Détecte directement la fermeture prolongée des paupières (micro-sommeil instantané).
+2. **🔄 MPU6050 (Volant, I2C)** : Détecte les micro-ajustements permanents et les mouvements angulaires du volant.
+3. **💓 MAX30100 (Oxymètre, I2C)** : Mesure le **rythme cardiaque**, l'**oxygène (SpO2)** et confirme la **présence des mains sur le volant**.
+4. **🧠 Moteur d'IA TinyML Embarqué** : Calcule en temps réel la **Variabilité Cardiaque (VRC / HRV - RMSSD)**, l'état oculaire et la variance de direction pour établir un **Indice de Fatigue de 0 à 100%**.
+5. **Phase de Stabilisation (8s)** : Au démarrage, étalonne les capteurs et compense la dérive du gyroscope (la LED jaune clignote doucement).
+6. **Alertes Graduées** :
+   * **Instantanée** : Yeux fermés $> 1,5\text{ s} \rightarrow$ Alarme critique immédiate !
+   * **Volant & Mains** : Sans action $> 4,5\text{ s} \rightarrow$ Pré-alerte jaune ; $> 8,0\text{ s} \rightarrow$ Alarme critique rouge + Alerte Telegram.
 
 ---
 
 ## 📱 Commandes Interactives sur Telegram
 
 Le boîtier dans le véhicule peut être interrogé à tout moment depuis votre téléphone :
+* `/status` $\rightarrow$ Diagnostic en direct des 3 capteurs (Yeux, Volant, Mains) et compteur d'incidents.
 * `/ai` $\rightarrow$ Score de fatigue IA TinyML (0–100%), VRC (RMSSD en ms) et régularité du volant.
-* `/vitals` $\rightarrow$ Fréquence cardiaque (BPM), saturation SpO2 (%) et détection des mains.
-* `/status` $\rightarrow$ État général du système, puissance Wi-Fi (RSSI) et compteur d'incidents.
+* `/vitals` $\rightarrow$ Fréquence cardiaque (BPM), saturation SpO2 (%) et présence des mains.
 * `/test` $\rightarrow$ Test physique d'une seconde du buzzer et des LED.
-* `/help` ou `/aide` $\rightarrow$ Liste des commandes disponibles.
+* `/aide` $\rightarrow$ Liste des commandes disponibles.
 
 ---
 
-## 🛠️ Matériel Requis (Checklist)
+## 🛠️ Matériel Requis (Checklist Complète)
 
 ### 1. Composants :
-* [ ] 1x Carte de développement ESP32 (ESP32-WROOM-32 ou NodeMCU ESP32) + câble Micro-USB
-* [ ] 1x Module MPU6050 (Accéléromètre / Gyroscope 6 axes)
-* [ ] 1x Module MAX30100 (Oxymètre de pouls et capteur cardiaque)
+* [ ] 1x Carte ESP32 (ESP32-WROOM-32 ou NodeMCU ESP32) + câble Micro-USB
+* [ ] 1x Module Capteur Oculaire IR (ou capteur infrarouge FC-51 / TCRT5000)
+* [ ] 1x Module MPU6050 (Accéléromètre / Gyroscope 6 axes I2C)
+* [ ] 1x Module MAX30100 (Oxymètre de pouls et capteur cardiaque I2C)
 * [ ] 1x Buzzer actif (5V ou 3.3V)
 * [ ] 1x LED Rouge + 1x LED Jaune + 2x Résistances de 220Ω
-* [ ] Plaque d'essai (Breadboard) & Fils de prototypage (jumper wires)
+* [ ] Plaque d'essai (Breadboard) & Fils de prototypage
 
-### 2. Câblage Électrique (Bus I2C partagé sur GPIO 21 & 22) :
-Les deux capteurs partagent les mêmes broches de communication I2C :
-* **MPU6050 SDA** ET **MAX30100 SDA** $\rightarrow$ **ESP32 GPIO 21**
-* **MPU6050 SCL** ET **MAX30100 SCL** $\rightarrow$ **ESP32 GPIO 22**
-* **MPU6050 VCC** & **MAX30100 VCC** $\rightarrow$ **3.3V (ou VIN)**
-* **GND** $\rightarrow$ **GND** (Masse commune)
-* **Buzzer (+)** $\rightarrow$ **GPIO 25**
-* **LED Rouge (+)** $\rightarrow$ **GPIO 26** (avec résistance 220Ω)
-* **LED Jaune (+)** $\rightarrow$ **GPIO 27** (avec résistance 220Ω)
+### 2. Câblage Électrique Complet :
 
-### 3. Configuration dans `config.h` :
-Ouvrez le fichier [`src/esp32_drowsiness_telegram/config.h`](file:///d:/anti/src/esp32_drowsiness_telegram/config.h) et renseignez :
+| Composant | Broche Composant | Broche ESP32 | Description |
+| :--- | :--- | :--- | :--- |
+| **Capteur Oculaire IR** | `OUT / D0` | **GPIO 34** | Entrée numérique/analogique (Fermeture des yeux) |
+| | `VCC / GND` | `3.3V / GND` | Alimentation du capteur |
+| **MPU6050 (Volant)** | `SDA` | **GPIO 21** | Ligne de données I2C partagée |
+| | `SCL` | **GPIO 22** | Ligne d'horloge I2C partagée |
+| | `VCC / GND` | `3.3V / GND` | Alimentation du capteur |
+| **MAX30100 (Pouls/Mains)** | `SDA` | **GPIO 21** | Ligne de données I2C partagée |
+| | `SCL` | **GPIO 22** | Ligne d'horloge I2C partagée |
+| | `VCC / GND` | `3.3V / GND` | Alimentation du capteur |
+| **Buzzer Actif** | `Positif (+)` | **GPIO 25** | Sirène sonore d'alarme |
+| | `Négatif (-)` | `GND` | Masse commune |
+| **LED Rouge (Critique)** | `Anode (+)` via 220Ω | **GPIO 26** | Stroboscope d'alarme critique |
+| **LED Jaune (Pré-Alerte)**| `Anode (+)` via 220Ω | **GPIO 27** | Témoin d'avertissement doux |
+
+---
+
+## 🚀 Mise en Service Pas à Pas
+
+### 1. Configuration dans `config.h` :
+Ouvrez [`src/esp32_drowsiness_telegram/config.h`](file:///d:/anti/src/esp32_drowsiness_telegram/config.h) et complétez :
 * `WIFI_SSID` & `WIFI_PASSWORD` (Votre réseau Wi-Fi ou partage de connexion mobile)
 * `BOT_TOKEN` (Généré en 30 secondes via `@BotFather` sur Telegram)
 * `CHAT_ID` (Votre identifiant numérique obtenu via `@userinfobot` sur Telegram)
 
-### 4. Téléversement avec l'IDE Arduino :
+### 2. Téléversement avec l'IDE Arduino :
 1. Dans le gestionnaire de bibliothèques (**Croquis > Inclure une bibliothèque > Gérer les bibliothèques...**), installez :
    * **`MAX30100lib`** (par OXullo Intervent)
    * **`UniversalTelegramBot`** (par Brian Lough)

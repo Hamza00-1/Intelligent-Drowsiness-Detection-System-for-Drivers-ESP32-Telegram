@@ -1,11 +1,12 @@
-# 🚘 Système Intelligent de Détection de Somnolence au Volant (ESP32, MPU6050, MAX30100 & Telegram)
-### 🧠 Amélioré avec une IA Embarquée TinyML pour l'Inférence Prédictive de la Fatigue
+# 🚘 Système Intelligent de Détection de Somnolence au Volant (ESP32, Capteur Oculaire, MPU6050, MAX30100 & Telegram)
+### 🧠 Fusion Tri-Capteurs & IA Embarquée TinyML pour la Sécurité Routière
 
-Un système complet de sécurité routière IoT et IA développé sur le microcontrôleur **ESP32**. Contrairement aux solutions traditionnelles basées uniquement sur des caméras ou des minuteurs fixes, ce système analyse la vigilance du conducteur via deux canaux physiques et physiologiques complémentaires :
-1. **MPU6050 (Centrale inertielle 6 axes)** : Surveille en continu les micro-ajustements angulaires du volant, la variance des mouvements et les à-coups directionnels.
-2. **MAX30100 (Oxymètre de pouls)** : Mesure en temps réel le rythme cardiaque, la saturation en oxygène (SpO2), la présence effective des mains sur le volant et les intervalles inter-battements (IBI).
-3. **Moteur d'IA Embarqué (Edge-AI TinyML)** : Calcule en continu la **Variabilité de la Fréquence Cardiaque (VRC / HRV - RMSSD)**, l'entropie de direction et un **Indice de Fatigue de 0 à 100%** pour anticiper le micro-sommeil **avant** que l'accident ne survienne.
-4. **Télémétrie Cloud** : Envoi automatique d'alertes chiffrées via l'API Telegram Bot avec constantes vitales en direct, détection d'anomalies de santé et télédiagnostic interactif (`/ai`, `/vitals`, `/status`, `/test`).
+Un système complet de sécurité routière IoT et IA développé sur le microcontrôleur **ESP32**. Il combine la puissance de **trois capteurs physiques et physiologiques** pour une fiabilité maximale contre l'endormissement :
+1. **👁️ Capteur Oculaire Infrarouge (GPIO 34)** : Détecte directement la fermeture prolongée des yeux et les micro-sommeils instantanés.
+2. **🔄 MPU6050 (Centrale inertielle 6 axes)** : Surveille en continu les micro-ajustements angulaires du volant, la variance des mouvements et les à-coups directionnels.
+3. **💓 MAX30100 (Oxymètre de pouls)** : Mesure en temps réel le rythme cardiaque, la saturation en oxygène (SpO2), la présence effective des mains sur le volant et les intervalles inter-battements (IBI).
+4. **Moteur d'IA Embarqué (Edge-AI TinyML)** : Calcule en continu la **Variabilité de la Fréquence Cardiaque (VRC / HRV - RMSSD)**, l'état d'ouverture oculaire et l'entropie de direction pour générer un **Indice de Fatigue de 0 à 100%**.
+5. **Télémétrie Cloud** : Envoi automatique d'alertes chiffrées via l'API Telegram Bot avec constantes vitales en direct, motif précis de l'alarme et télédiagnostic interactif (`/ai`, `/vitals`, `/status`, `/test`, `/aide`).
 
 ---
 
@@ -17,7 +18,7 @@ anti/
 ├── 📁 src/
 │   └── 📁 esp32_drowsiness_telegram/
 │       ├── config.h                       <-- ⚙️ SEUL FICHIER À MODIFIER ! (Wi-Fi, Telegram, Seuils IA)
-│       └── esp32_drowsiness_telegram.ino  <-- 🚀 Programme Arduino ESP32 avec Moteur d'IA Embarqué
+│       └── esp32_drowsiness_telegram.ino  <-- 🚀 Programme Arduino ESP32 (Fusion Tri-Capteurs + IA)
 │
 ├── 📁 ai_companion/
 │   ├── drowsiness_ai_detector.py          <-- 👁️ Vision par ordinateur Face Mesh (Yeux & Bâillements)
@@ -32,23 +33,23 @@ anti/
 
 ---
 
-## 🧠 Le Moteur d'IA Prédictif TinyML (Fonctionnement)
+## 🧠 Le Moteur d'IA Prédictif TinyML (Fusion Tri-Modale)
 
-Les systèmes passifs attendent généralement que le conducteur s'endorme pour réagir. Notre firmware calcule un **Indice de Fatigue continu de 0 à 100%** en temps réel directement sur le processeur de l'ESP32 :
+Notre firmware calcule un **Indice de Fatigue continu de 0 à 100%** en temps réel directement sur le processeur de l'ESP32 :
 
-$$\text{Indice de Fatigue} = w_1 \cdot \text{Facteur d'Inactivité} + w_2 \cdot \text{Entropie du Volant} + w_3 \cdot \text{Chute VRC / Rythme Cardiaque}$$
+$$\text{Indice de Fatigue} = w_1 \cdot \text{Facteur Oculaire} + w_2 \cdot \text{Inactivité Volant} + w_3 \cdot \text{Entropie Direction} + w_4 \cdot \text{Chute VRC / Rythme}$$
 
-### 1. Variabilité de la Fréquence Cardiaque (VRC / HRV - RMSSD)
+### 1. Surveillance Oculaire Directe (Capteur IR)
+* Un clignement normal dure entre 100 et 400 millisecondes.
+* Dès que les yeux restent fermés **$\ge 1,5$ seconde**, le système déclenche immédiatement l'alarme critique de bord pour éviter l'accident imminent.
+
+### 2. Variabilité de la Fréquence Cardiaque (VRC / HRV - RMSSD)
 * L'algorithme calcule la racine carrée de la moyenne des différences successives (RMSSD) entre les battements via l'interruption du capteur MAX30100.
-* Lors de la phase de transition vers le sommeil, les modifications du système nerveux autonome provoquent une chute nette et une désynchronisation de la valeur RMSSD.
+* Lors de l'endormissement, le relâchement du système nerveux autonome provoque une baisse et une instabilité caractéristiques de la valeur RMSSD.
 
-### 2. Dynamique et Entropie du Volant (MPU6050)
+### 3. Dynamique et Entropie du Volant (MPU6050)
 * **Conducteur attentif** : Fréquence élevée de micro-corrections douces (variance saine).
-* **Conducteur somnolent** : Trajectoire figée (variance proche de zéro), suivie de coups de volant brusques pour rattraper la trajectoire (réveil en sursaut).
-
-### 3. Avertissement Prédictif Immédiat
-* Dès que l'indice de fatigue atteint **$\ge 75\%$**, l'ESP32 transmet un avertissement prédictif sur Telegram :
-  > *"⚠️ AVERTISSEMENT PRÉDICTIF IA : Indice de fatigue à 82%. La variabilité cardiaque a chuté à 18,4 ms. Il est recommandé de faire une pause avant que l'endormissement ne survienne !"*
+* **Conducteur somnolent** : Trajectoire figée (variance proche de zéro), suivie de coups de volant brusques pour rattraper la trajectoire.
 
 ---
 
@@ -63,40 +64,43 @@ $$\text{Indice de Fatigue} = w_1 \cdot \text{Facteur d'Inactivité} + w_2 \cdot 
                                     │
                                     ▼
  ┌────────────────────────────────────────────────────────────────────────┐
- │                   PHASE 2 : SURVEILLANCE ACTIVE PAR IA                 │
- │  • Mains sur le volant (MAX30100) + micro-mouvements (MPU6050).        │
+ │                   PHASE 2 : SURVEILLANCE ACTIVE TRI-CAPTEURS           │
+ │  • Yeux ouverts + Mains sur volant (MAX30100) + Micro-mouvements (MPU).│
  │  • Calcul continu de l'indice de fatigue et de la VRC. Alarmes COUPEES.│
  └──────────────────────────────────┬─────────────────────────────────────┘
-                                    │ (Inactivité > 4,5s OU Fatigue IA Élevée)
-                                    ▼
- ┌────────────────────────────────────────────────────────────────────────┐
- │                   PHASE 3 : PRÉ-ALERTE AVERTISSEMENT                   │
- │  • LED Jaune allumée fixe + bip sonore intermittent doux.              │
- │  • Incite le conducteur à replacer les mains et corriger la direction. │
- └──────────────────────────────────┬─────────────────────────────────────┘
-                                    │ (Inactivité > 8,0s : Conducteur sans réaction)
-                                    ▼
- ┌────────────────────────────────────────────────────────────────────────┐
- │                   PHASE 4 : ALARME CRITIQUE & TÉLÉGRAM                 │
- │  • Sirène continue à fort volume sonore.                               │
- │  • Stroboscope rapide de la LED Rouge.                                 │
- │  • Envoi d'une alerte Telegram d'urgence avec données physiologiques : │
- │    "🚨 Alerte Critique : Conducteur Inactif ! Pouls : 74 BPM | SpO2: 98%"│
- └────────────────────────────────────────────────────────────────────────┘
+                                    │
+          ┌─────────────────────────┴────────────────────────┐
+          │ (Yeux fermés > 1,5s)                             │ (Mains & Volant inactifs > 4,5s)
+          ▼                                                  ▼
+ ┌──────────────────────────────────┐      ┌──────────────────────────────────┐
+ │      ALARME CRITIQUE IMMÉDIATE   │      │   PHASE 3 : PRÉ-ALERTE DOUCE     │
+ │ • Sirène continue & stroboscope  │      │ • LED Jaune fixe + bip discret   │
+ │ • Envoi alerte Telegram immédiate│      │ • Rappel de reprendre le volant  │
+ └──────────────────────────────────┘      └─────────────────┬────────────────┘
+                                                             │ (Inactivité continue > 8,0s)
+                                                             ▼
+                                           ┌──────────────────────────────────┐
+                                           │  PHASE 4 : ALARME CRITIQUE VOLANT│
+                                           │ • Alarme sonore continue         │
+                                           │ • Alerte Telegram avec télémétrie│
+                                           └──────────────────────────────────┘
 ```
 
 ---
 
-## 🔌 Câblage Électrique (Bus I2C Partagé)
-
-Le **MPU6050** et le **MAX30100** partagent les lignes **GPIO 21 (SDA)** et **GPIO 22 (SCL)** de l'ESP32 :
+## 🔌 Câblage Électrique Complet
 
 ```text
                         +----------------------------------+
                         |           CARTE ESP32            |
                         |                                  |
+ [CAPTEUR OCULAIRE IR]  |                                  |
+ VCC -----------------> | 3V3                              |
+ GND -----------------> | GND                              |
+ OUT -----------------> | GPIO 34 (Entrée Dédiée)          |
+                        |                                  |
  [MPU6050 GYRO/ACCEL]   |                                  |
- VCC -----------------> | 3V3 / VIN                        |
+ VCC -----------------> | 3V3                              |
  GND -----------------> | GND                              |
  SDA -----------------> | GPIO 21 (I2C SDA) <──────────────┼────+
  SCL -----------------> | GPIO 22 (I2C SCL) <──────────────┼──+ │
@@ -125,13 +129,11 @@ Le **MPU6050** et le **MAX30100** partagent les lignes **GPIO 21 (SDA)** et **GP
 
 ## 📱 Commandes Interactives sur Telegram
 
-Vous pouvez envoyer des commandes au bot Telegram à tout moment pour obtenir le diagnostic du véhicule :
-
 | Commande | Action |
 | :--- | :--- |
-| `/ai` | Renvoie le **Score de Fatigue TinyML (0–100%)**, le niveau de risque, la VRC (RMSSD en ms) et la variance de direction. |
-| `/vitals` | Renvoie en direct la **Fréquence Cardiaque (BPM)**, l'**Oxygène Sanguin (SpO2 %)** et l'état des mains sur le volant. |
-| `/status` | Renvoie l'état global du système, la qualité du signal Wi-Fi (RSSI) et le compteur total d'incidents. |
+| `/status` | Renvoie l'état détaillé des **3 capteurs** (Yeux, Volant, Mains), le signal Wi-Fi et les incidents. |
+| `/ai` | Renvoie le **Score de Fatigue TinyML (0–100%)**, l'état des yeux, la VRC (RMSSD en ms) et la variance de direction. |
+| `/vitals` | Renvoie en direct la **Fréquence Cardiaque (BPM)**, l'**Oxygène Sanguin (SpO2 %)** et la présence des mains. |
 | `/test` | Déclenche un test physique d'une seconde du buzzer, de la LED jaune et de la LED rouge. |
 | `/aide` | Affiche le menu des commandes disponibles. |
 
@@ -140,41 +142,35 @@ Vous pouvez envoyer des commandes au bot Telegram à tout moment pour obtenir le
 ## 🛠️ Instructions pour l'IDE Arduino
 
 ### 1. Installation des Bibliothèques Requises
-Dans l'IDE Arduino, allez dans **Croquis > Inclure une bibliothèque > Gérer les bibliothèques...** et installez :
+Dans l'IDE Arduino (**Croquis > Inclure une bibliothèque > Gérer les bibliothèques...**) :
 1. **`MAX30100lib`** (par OXullo Intervent) — Gestion de l'oxymètre de pouls et des battements cardiaques.
 2. **`UniversalTelegramBot`** (par Brian Lough) — Communication HTTPS sécurisée avec Telegram.
-3. **`ArduinoJson`** (par Benoit Blanchon) — **Choisir impérativement la version 6.x** !
+3. **`ArduinoJson`** (par Benoit Blanchon) — **Version 6.x impérative**.
 
 ### 2. Configuration des Identifiants
-Ouvrez [`src/esp32_drowsiness_telegram/config.h`](file:///d:/anti/src/esp32_drowsiness_telegram/config.h) et complétez :
-```cpp
-#define WIFI_SSID     "VOTRE_NOM_WIFI"
-#define WIFI_PASSWORD "VOTRE_MOT_DE_PASSE"
-#define BOT_TOKEN     "VOTRE_TOKEN_BOT_TELEGRAM" // Obtenu via @BotFather sur Telegram
-#define CHAT_ID       "VOTRE_CHAT_ID_NUMERIQUE"  // Obtenu via @userinfobot sur Telegram
-```
+Ouvrez [`src/esp32_drowsiness_telegram/config.h`](file:///d:/anti/src/esp32_drowsiness_telegram/config.h) et renseignez vos identifiants Wi-Fi et Telegram.
 
 ### 3. Téléversement
 * Connectez votre ESP32 en USB.
-* Sélectionnez **Outils > Type de carte > ESP32 Dev Module** et le bon **Port COM**.
-* Cliquez sur **Téléverser (➡️)** puis ouvrez le **Moniteur Série (115200 bauds)**.
+* Choisissez **Outils > Type de carte > ESP32 Dev Module** et le bon port COM.
+* Cliquez sur **Téléverser (➡️)**.
 
 ---
 
 ## 📝 Description pour Profil LinkedIn (Prête à Copier-Coller)
 
 ```text
-Titre : Système Intelligent de Détection de Somnolence au Volant – ESP32, MPU6050, MAX30100 & Telegram
+Titre : Système Intelligent de Détection de Somnolence au Volant – ESP32, Capteur Oculaire, MPU6050, MAX30100 & Telegram
 
 Description :
-Développement d'un système intelligent et connecté de sécurité routière basé sur microcontrôleur ESP32 et intelligence artificielle embarquée (TinyML), conçu pour prévenir les accidents causés par la fatigue et le micro-sommeil au volant grâce à une fusion de données biométriques et cinématiques.
+Développement d'un système intelligent et connecté de sécurité routière basé sur microcontrôleur ESP32 et intelligence artificielle embarquée (TinyML), conçu pour prévenir les accidents causés par la fatigue et le micro-sommeil au volant grâce à une fusion tri-capteurs oculaire, biométrique et cinématique.
 
 Points Forts Techniques & Ingénierie :
-• Fusion Multi-Capteurs Volant & Biométrie : Intégration d'une centrale inertielle 6 axes MPU6050 analysant les micro-ajustements permanents de la direction et d'un oxymètre de pouls MAX30100 surveillant en direct le rythme cardiaque, l'oxygénation sanguine (SpO2) et la présence physique des mains sur le volant.
-• Moteur d'IA Prédictif Embarqué (Edge-AI) : Implémentation d'un algorithme d'inférence TinyML calculant en temps réel la Variabilité de la Fréquence Cardiaque (VRC / HRV - RMSSD) et l'entropie directionnelle pour générer un Indice de Fatigue (0 à 100%), alertant le conducteur avant la perte de conscience.
-• Architecture d'Alerte Graduée : Conception d'une machine à états finis intégrant une phase de stabilisation de 8 secondes, une pré-alerte douce (LED jaune et signal sonore discret) et une alarme critique d'urgence (stroboscope rouge et sirène continue).
-• Télémétrie Cloud & Sécurité Routière : Intégration de l'API Telegram Bot via protocole TLS/SSL chiffré (WiFiClientSecure) pour la transmission instantanée de rapports d'urgence incluant constantes vitales et télémétrie vers les gestionnaires de flotte et proches.
-• Télédiagnostic Bidirectionnel : Implémentation de commandes asynchrones (/ai, /vitals, /status, /test) pour la surveillance à distance de l'état des capteurs, de la puissance réseau et des constantes du conducteur.
+• Fusion Tri-Capteurs Oculaire & Volant : Intégration d'un capteur infrarouge oculaire surveillant le clignement et la fermeture des paupières, d'une centrale inertielle 6 axes MPU6050 analysant les micro-ajustements permanents de la direction, et d'un oxymètre de pouls MAX30100 mesurant en direct le pouls, l'oxygène sanguin (SpO2) et la présence physique des mains sur le volant.
+• Moteur d'IA Prédictif Embarqué (Edge-AI) : Implémentation d'un algorithme d'inférence TinyML calculant en temps réel la Variabilité de la Fréquence Cardiaque (VRC / HRV - RMSSD), l'état oculaire et l'entropie directionnelle pour générer un Indice de Fatigue (0 à 100%), alertant le conducteur avant la perte de conscience.
+• Architecture d'Alerte Graduée : Alarme immédiate en cas de micro-sommeil oculaire (> 1,5s), complétée par une phase de pré-alerte douce (LED jaune et signal sonore discret) et une alarme critique d'urgence (stroboscope rouge et sirène continue) en cas de lâcher de volant.
+• Télémétrie Cloud & Sécurité Routière : Intégration de l'API Telegram Bot via protocole TLS/SSL chiffré (WiFiClientSecure) pour la transmission instantanée de rapports d'urgence incluant le motif précis de l'alerte, les constantes vitales et la télémétrie.
+• Télédiagnostic Bidirectionnel : Implémentation de commandes asynchrones (/status, /ai, /vitals, /test, /aide) pour la surveillance à distance de l'état des 3 capteurs et des constantes du conducteur.
 
-Compétences : ESP32, Internet des Objets (IoT), TinyML, Intelligence Artificielle Embarquée, C++ Embarqué, I2C, MPU6050, MAX30100, Télémétrie, API Telegram Bot.
+Compétences : ESP32, Internet des Objets (IoT), TinyML, Capteurs Infrarouges, MPU6050, MAX30100, C++ Embarqué, I2C, Biométrie, Sécurité Routière, API Telegram Bot.
 ```
