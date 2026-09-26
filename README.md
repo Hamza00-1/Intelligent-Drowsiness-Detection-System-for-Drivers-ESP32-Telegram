@@ -27,8 +27,7 @@ anti/
 │   └── run_ai_detector.bat                <-- ⚡ Lanceur en un clic pour Windows
 │
 ├── QUICKSTART.md                          <-- 🚀 Guide de démarrage rapide et câblage
-├── README.md                              <-- 📖 Manuel technique complet du système (Ce fichier)
-└── push_to_github.bat                     <-- 📤 Script de publication en un clic sur GitHub
+└── README.md                              <-- 📖 Manuel technique complet du système (Ce fichier)
 ```
 
 ---
