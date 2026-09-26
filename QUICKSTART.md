@@ -62,7 +62,7 @@ Le boîtier dans le véhicule peut être interrogé à tout moment depuis votre 
 ## 🚀 Mise en Service Pas à Pas
 
 ### 1. Configuration dans `config.h` :
-Ouvrez [`src/esp32_drowsiness_telegram/config.h`](file:///d:/anti/src/esp32_drowsiness_telegram/config.h) et complétez :
+Ouvrez [`code_source/esp32_somnolence_telegram/config.h`](file:///d:/anti/code_source/esp32_somnolence_telegram/config.h) et complétez :
 * `WIFI_SSID` & `WIFI_PASSWORD` (Votre réseau Wi-Fi ou partage de connexion mobile)
 * `BOT_TOKEN` (Généré en 30 secondes via `@BotFather` sur Telegram)
 * `CHAT_ID` (Votre identifiant numérique obtenu via `@userinfobot` sur Telegram)
@@ -72,7 +72,7 @@ Ouvrez [`src/esp32_drowsiness_telegram/config.h`](file:///d:/anti/src/esp32_drow
    * **`MAX30100lib`** (par OXullo Intervent)
    * **`UniversalTelegramBot`** (par Brian Lough)
    * **`ArduinoJson`** (par Benoit Blanchon — **Version 6.x**)
-2. Ouvrez [`esp32_drowsiness_telegram.ino`](file:///d:/anti/src/esp32_drowsiness_telegram/esp32_drowsiness_telegram.ino), sélectionnez la carte **ESP32 Dev Module**, choisissez le bon port COM, et cliquez sur **Téléverser (➡️)** !
+2. Ouvrez [`esp32_somnolence_telegram.ino`](file:///d:/anti/code_source/esp32_somnolence_telegram/esp32_somnolence_telegram.ino), sélectionnez la carte **ESP32 Dev Module**, choisissez le bon port COM, et cliquez sur **Téléverser (➡️)** !
 
 ---
 

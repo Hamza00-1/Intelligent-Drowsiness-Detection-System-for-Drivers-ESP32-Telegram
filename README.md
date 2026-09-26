@@ -15,16 +15,16 @@ Un système complet de sécurité routière IoT et IA développé sur le microco
 ```text
 anti/
 │
-├── 📁 src/
-│   └── 📁 esp32_drowsiness_telegram/
+├── 📁 code_source/
+│   └── 📁 esp32_somnolence_telegram/
 │       ├── config.h                       <-- ⚙️ SEUL FICHIER À MODIFIER ! (Wi-Fi, Telegram, Seuils IA)
-│       └── esp32_drowsiness_telegram.ino  <-- 🚀 Programme Arduino ESP32 (Fusion Tri-Capteurs + IA)
+│       └── esp32_somnolence_telegram.ino  <-- 🚀 Programme Arduino ESP32 (Fusion Tri-Capteurs + IA)
 │
-├── 📁 ai_companion/
-│   ├── drowsiness_ai_detector.py          <-- 👁️ Vision par ordinateur Face Mesh (Yeux & Bâillements)
-│   ├── ml_data_logger_and_trainer.py      <-- 🔬 Entraînement de Modèle ML (Random Forest)
+├── 📁 module_ia/
+│   ├── detecteur_somnolence_ia.py         <-- 👁️ Vision par ordinateur Face Mesh (Yeux & Bâillements)
+│   ├── entrainement_modele_ml.py          <-- 🔬 Entraînement de Modèle ML (Random Forest)
 │   ├── requirements.txt                   <-- 📦 Dépendances Python
-│   └── run_ai_detector.bat                <-- ⚡ Lanceur en un clic pour Windows
+│   └── lancer_detecteur_ia.bat            <-- ⚡ Lanceur en un clic pour Windows
 │
 ├── QUICKSTART.md                          <-- 🚀 Guide de démarrage rapide et câblage
 └── README.md                              <-- 📖 Manuel technique complet du système (Ce fichier)
@@ -147,7 +147,7 @@ Dans l'IDE Arduino (**Croquis > Inclure une bibliothèque > Gérer les biblioth�
 3. **`ArduinoJson`** (par Benoit Blanchon) — **Version 6.x impérative**.
 
 ### 2. Configuration des Identifiants
-Ouvrez [`src/esp32_drowsiness_telegram/config.h`](file:///d:/anti/src/esp32_drowsiness_telegram/config.h) et renseignez vos identifiants Wi-Fi et Telegram.
+Ouvrez [`code_source/esp32_somnolence_telegram/config.h`](file:///d:/anti/code_source/esp32_somnolence_telegram/config.h) et renseignez vos identifiants Wi-Fi et Telegram.
 
 ### 3. Téléversement
 * Connectez votre ESP32 en USB.

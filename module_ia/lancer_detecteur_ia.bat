@@ -8,5 +8,5 @@ echo Verification et installation des dependances Python...
 pip install -r requirements.txt
 echo.
 echo Lancement du moniteur de surveillance par webcam...
-python drowsiness_ai_detector.py
+python detecteur_somnolence_ia.py
 pause
