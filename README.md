@@ -157,20 +157,6 @@ Ouvrez [`src/esp32_drowsiness_telegram/config.h`](file:///d:/anti/src/esp32_drow
 
 ---
 
-## 📝 Description pour Profil LinkedIn (Prête à Copier-Coller)
-
-```text
-Titre : Système Intelligent de Détection de Somnolence au Volant – ESP32, Capteur Oculaire, MPU6050, MAX30100 & Telegram
-
-Description :
-Développement d'un système intelligent et connecté de sécurité routière basé sur microcontrôleur ESP32 et intelligence artificielle embarquée (TinyML), conçu pour prévenir les accidents causés par la fatigue et le micro-sommeil au volant grâce à une fusion tri-capteurs oculaire, biométrique et cinématique.
-
-Points Forts Techniques & Ingénierie :
-• Fusion Tri-Capteurs Oculaire & Volant : Intégration d'un capteur infrarouge oculaire surveillant le clignement et la fermeture des paupières, d'une centrale inertielle 6 axes MPU6050 analysant les micro-ajustements permanents de la direction, et d'un oxymètre de pouls MAX30100 mesurant en direct le pouls, l'oxygène sanguin (SpO2) et la présence physique des mains sur le volant.
-• Moteur d'IA Prédictif Embarqué (Edge-AI) : Implémentation d'un algorithme d'inférence TinyML calculant en temps réel la Variabilité de la Fréquence Cardiaque (VRC / HRV - RMSSD), l'état oculaire et l'entropie directionnelle pour générer un Indice de Fatigue (0 à 100%), alertant le conducteur avant la perte de conscience.
-• Architecture d'Alerte Graduée : Alarme immédiate en cas de micro-sommeil oculaire (> 1,5s), complétée par une phase de pré-alerte douce (LED jaune et signal sonore discret) et une alarme critique d'urgence (stroboscope rouge et sirène continue) en cas de lâcher de volant.
-• Télémétrie Cloud & Sécurité Routière : Intégration de l'API Telegram Bot via protocole TLS/SSL chiffré (WiFiClientSecure) pour la transmission instantanée de rapports d'urgence incluant le motif précis de l'alerte, les constantes vitales et la télémétrie.
-• Télédiagnostic Bidirectionnel : Implémentation de commandes asynchrones (/status, /ai, /vitals, /test, /aide) pour la surveillance à distance de l'état des 3 capteurs et des constantes du conducteur.
 
 Compétences : ESP32, Internet des Objets (IoT), TinyML, Capteurs Infrarouges, MPU6050, MAX30100, C++ Embarqué, I2C, Biométrie, Sécurité Routière, API Telegram Bot.
 ```
