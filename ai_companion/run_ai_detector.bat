@@ -1,12 +1,12 @@
 @echo off
-title AI Driver Drowsiness & Yawn Detector
+title Detecteur IA de Somnolence et Fatigue au Volant
 echo ====================================================
-echo   AI Driver Drowsiness & Fatigue Detector
+echo   Detecteur IA de Somnolence et Baillements
 echo ====================================================
 echo.
-echo Installing / checking Python dependencies...
+echo Verification et installation des dependances Python...
 pip install -r requirements.txt
 echo.
-echo Launching AI Computer Vision Webcam Monitor...
+echo Lancement du moniteur de surveillance par webcam...
 python drowsiness_ai_detector.py
 pause

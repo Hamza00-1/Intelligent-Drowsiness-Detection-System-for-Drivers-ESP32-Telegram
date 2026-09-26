@@ -2,57 +2,57 @@
 #define CONFIG_H
 
 // ==============================================================================
-// 🚗 DRIVER SAFETY SYSTEM - USER CONFIGURATION FILE
+// 🚗 SYSTÈME DE SÉCURITÉ CONDUCTEUR - FICHIER DE CONFIGURATION
 // ==============================================================================
-// Hardware Architecture:
-//  - Microcontroller: ESP32
-//  - Sensor 1: MPU6050 (Steering Wheel Movement & Micro-adjustments via I2C)
-//  - Sensor 2: MAX30100 (Pulse Oximeter, Vitals & Hand-on-Wheel Detection via I2C)
-//  - AI Engine: Real-Time TinyML-inspired Fatigue Index & Biometric Anomaly Detection
-//  - Actuators: Active Buzzer + Dual LEDs (Yellow Pre-Alert, Red Critical)
-//  - Cloud: Telegram Bot API over Wi-Fi
+// Architecture Matérielle :
+//  - Microcontrôleur : ESP32
+//  - Capteur 1 : MPU6050 (Micro-mouvements et dynamique du volant via I2C)
+//  - Capteur 2 : MAX30100 (Oxymètre de pouls, rythme cardiaque et présence des mains via I2C)
+//  - Moteur d'IA : Indice de Fatigue TinyML prédictif en temps réel et alertes santé
+//  - Actionneurs : Buzzer actif + Double LED (Jaune Pré-Alerte, Rouge Critique)
+//  - Cloud : API Telegram Bot via Wi-Fi sécurisé
 // ==============================================================================
 
-// 1. Wi-Fi Credentials
-#define WIFI_SSID                   "YOUR_WIFI_NAME"
-#define WIFI_PASSWORD               "YOUR_WIFI_PASSWORD"
+// 1. Identifiants Wi-Fi (Box Internet ou Partage de Connexion 4G/5G)
+#define WIFI_SSID                   "VOTRE_NOM_WIFI"
+#define WIFI_PASSWORD               "VOTRE_MOT_DE_PASSE_WIFI"
 
-// 2. Telegram Bot Configuration
-// Get BOT_TOKEN from @BotFather, and CHAT_ID from @userinfobot on Telegram
-#define BOT_TOKEN                   "YOUR_TELEGRAM_BOT_TOKEN"
-#define CHAT_ID                     "YOUR_TELEGRAM_CHAT_ID"
+// 2. Configuration du Bot Telegram
+// Obtenez le BOT_TOKEN auprès de @BotFather, et le CHAT_ID auprès de @userinfobot sur Telegram
+#define BOT_TOKEN                   "VOTRE_TELEGRAM_BOT_TOKEN"
+#define CHAT_ID                     "VOTRE_TELEGRAM_CHAT_ID"
 
-// 3. Hardware Pinout (ESP32)
-// I2C Bus Pins (Shared by both MPU6050 & MAX30100)
-#define PIN_I2C_SDA                 21     // GPIO 21 -> SDA on both sensors
-#define PIN_I2C_SCL                 22     // GPIO 22 -> SCL on both sensors
+// 3. Broches Matérielles (Brochage ESP32)
+// Bus I2C (Partagé par le MPU6050 et le MAX30100)
+#define PIN_I2C_SDA                 21     // GPIO 21 -> Ligne de données SDA des deux capteurs
+#define PIN_I2C_SCL                 22     // GPIO 22 -> Ligne d'horloge SCL des deux capteurs
 
-// Alert Actuators
-#define PIN_BUZZER                  25     // GPIO 25 -> Active Buzzer (+)
-#define PIN_LED_RED_CRITICAL        26     // GPIO 26 -> Red LED (Critical Alarm)
-#define PIN_LED_YELLOW_PREALERT     27     // GPIO 27 -> Yellow/Amber LED (Pre-Alert Warning)
-#define PIN_LED_STATUS              2      // GPIO 2  -> Onboard Blue LED (System & Wi-Fi Status)
+// Actionneurs d'Alerte
+#define PIN_BUZZER                  25     // GPIO 25 -> Buzzer actif (+)
+#define PIN_LED_RED_CRITICAL        26     // GPIO 26 -> LED Rouge (Alarme Critique de Somnolence)
+#define PIN_LED_YELLOW_PREALERT     27     // GPIO 27 -> LED Jaune (Avertissement de Pré-Alerte)
+#define PIN_LED_STATUS              2      // GPIO 2  -> LED Bleue intégrée (Statut Wi-Fi et système)
 
-// 4. Timing & State Thresholds (in milliseconds)
-#define STABILIZATION_TIME_MS       8000   // 8 seconds stabilization/calibration at boot
-#define PRE_ALERT_TIME_MS           4500   // 4.5 seconds -> Triggers soft pre-alert (LED / Beep)
-#define CRITICAL_ALERT_TIME_MS      8000   // 8.0 seconds -> Triggers full alarm + Telegram alert
-#define TELEGRAM_COOLDOWN_MS        25000  // 25 seconds cooldown between cloud alert messages
-#define BOT_CHECK_INTERVAL_MS       2000   // 2.0 seconds polling for incoming Telegram commands
+// 4. Seuils Temporels (en millisecondes)
+#define STABILIZATION_TIME_MS       8000   // 8 secondes de calibration et préchauffage au démarrage
+#define PRE_ALERT_TIME_MS           4500   // 4,5 secondes sans contact/mouvement -> Pré-alerte douce
+#define CRITICAL_ALERT_TIME_MS      8000   // 8,0 secondes d'inactivité -> Alarme critique + Alerte Telegram
+#define TELEGRAM_COOLDOWN_MS        25000  // 25 secondes d'attente entre deux alertes cloud (anti-spam)
+#define BOT_CHECK_INTERVAL_MS       2000   // Vérification des commandes Telegram toutes les 2 secondes
 
-// 5. Sensor Detection Sensitivity Thresholds
-#define STEERING_MOTION_THRESHOLD   18.0f  // Minimum angular rate delta (deg/s) for active steering
-#define HAND_PRESENCE_IR_THRESHOLD  22000  // Minimum raw reflection for hand presence
+// 5. Seuils de Détection des Capteurs
+#define STEERING_MOTION_THRESHOLD   18.0f  // Vitesse angulaire minimale (deg/s) pour valider un mouvement du volant
+#define HAND_PRESENCE_IR_THRESHOLD  22000  // Seuil infrarouge minimum confirmant la main sur le volant
 
-// 6. 🧠 AI & PREDICTIVE FATIGUE SETTINGS
-#define ENABLE_AI_PREDICTOR         true   // Set to true to enable on-device TinyML fatigue scoring
-#define AI_FATIGUE_ALERT_SCORE      75     // Score (0-100%) above which AI Early Warning triggers
-#define HRV_WINDOW_SIZE             12     // Rolling window of heartbeat intervals for HRV calculation
-#define STEERING_SAMPLE_WINDOW      20     // Rolling window of steering motion samples
+// 6. 🧠 PARAMÈTRES DE L'IA ET DE LA FATIGUE PRÉDICTIVE
+#define ENABLE_AI_PREDICTOR         true   // true = Activer le calcul de l'indice de fatigue TinyML embarqué
+#define AI_FATIGUE_ALERT_SCORE      75     // Score (0-100%) déclenchant l'alerte prédictive d'endormissement
+#define HRV_WINDOW_SIZE             12     // Taille de la fenêtre glissante des battements pour le calcul VRC (HRV)
+#define STEERING_SAMPLE_WINDOW      20     // Fenêtre glissante pour l'analyse de la variance du volant
 
-// 7. 🏥 BIOMETRIC HEALTH ANOMALY LIMITS
-#define MIN_SAFE_SPO2               90     // Blood oxygen below 90% triggers hypoxia warning
-#define MIN_SAFE_BPM                45     // Extreme bradycardia threshold (BPM)
-#define MAX_SAFE_BPM                140    // Extreme tachycardia threshold while driving (BPM)
+// 7. 🏥 LIMITES DES ANOMALIES BIOMÉTRIQUES & SANTÉ
+#define MIN_SAFE_SPO2               90     // Seuil d'hypoxie : Oxygène sanguin inférieur à 90%
+#define MIN_SAFE_BPM                45     // Seuil de bradycardie sévère (Pulsations par minute)
+#define MAX_SAFE_BPM                140    // Seuil de tachycardie sévère au volant (Pulsations par minute)
 
 #endif // CONFIG_H
